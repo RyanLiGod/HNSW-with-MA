@@ -28,6 +28,7 @@ type node struct {
 	p       Point
 	level   int
 	friends [][]uint32
+	attributes []string
 }
 
 type Hnsw struct {
@@ -423,7 +424,11 @@ func (h *Hnsw) Grow(size int) {
 	h.nodes = newNodes
 }
 
-func (h *Hnsw) Add(q Point, id uint32) {
+func (h *Hnsw) GetNodeAttr(id uint32) []string {
+	return h.nodes[id].attributes
+}
+
+func (h *Hnsw) Add(q Point, id uint32, attributes []string) {
 	// start := time.Now()
 	if id == 0 {
 		panic("Id 0 is reserved, use ID:s starting from 1 when building index")
@@ -438,7 +443,7 @@ func (h *Hnsw) Add(q Point, id uint32) {
 
 	// assume Grow has been called in advance
 	newID := id
-	newNode := node{p: q, level: curlevel, friends: make([][]uint32, min(curlevel, currentMaxLayer)+1)}
+	newNode := node{p: q, level: curlevel, friends: make([][]uint32, min(curlevel, currentMaxLayer)+1), attributes: attributes}
 
 	// first pass, find another ep if curlevel < maxLayer
 	for level := currentMaxLayer; level > curlevel; level-- {
@@ -463,7 +468,7 @@ func (h *Hnsw) Add(q Point, id uint32) {
 	for level := min(curlevel, currentMaxLayer); level >= 0; level-- {
 
 		resultSet := &distqueue.DistQueueClosestLast{}
-		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level)
+		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level, nil)
 		switch h.DelaunayType {
 		case 0:
 			// shrink resultSet to M closest elements (the simple heuristic)
@@ -518,110 +523,113 @@ func (h *Hnsw) Add(q Point, id uint32) {
 }
 
 // BalancedAdd 平衡索引结构
-func (h *Hnsw) BalancedAdd(q Point, id uint32) {
-	// start := time.Now()
-	if id == 0 {
-		panic("Id 0 is reserved, use ID:s starting from 1 when building index")
+//func (h *Hnsw) BalancedAdd(q Point, id uint32) {
+//	// start := time.Now()
+//	if id == 0 {
+//		panic("Id 0 is reserved, use ID:s starting from 1 when building index")
+//	}
+//
+//	epID := h.enterpoint
+//	currentMaxLayer := h.nodes[epID].level
+//	ep := &distqueue.Item{ID: h.enterpoint, D: h.DistFunc(h.nodes[h.enterpoint].p, q)}
+//
+//	// assume Grow has been called in advance
+//	newID := id
+//	newNode := node{p: q, level: 0, friends: make([][]uint32, 0)}
+//
+//	// 找到第1层中最近的一个作为ep
+//	for level := currentMaxLayer; level > 0; level-- {
+//		changed := true
+//		for changed {
+//			changed = false
+//			for _, i := range h.getFriends(ep.ID, level) {
+//				d := h.DistFunc(h.nodes[i].p, q)
+//				if d < ep.D {
+//					ep = &distqueue.Item{ID: i, D: d}
+//					changed = true
+//				}
+//			}
+//		}
+//	}
+//
+//	// timeMark1 := time.Now()
+//
+//	level := 0
+//	for {
+//		resultSet := &distqueue.DistQueueClosestLast{}
+//		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level)
+//		switch h.DelaunayType {
+//		case 0:
+//			// shrink resultSet to M closest elements (the simple heuristic)
+//			for resultSet.Len() > h.M {
+//				resultSet.Pop()
+//			}
+//		case 1:
+//			h.getNeighborsByHeuristicClosestLast(resultSet, h.M)
+//		}
+//		newNode.friends = append(newNode.friends, make([]uint32, resultSet.Len()))
+//		for i := resultSet.Len() - 1; i >= 0; i-- {
+//			item := resultSet.Pop()
+//			// store in order, closest at index 0
+//			newNode.friends[level][i] = item.ID
+//		}
+//
+//		// 如果数量不足maxL，直接退出
+//		if len(newNode.friends[level]) < h.M {
+//			break
+//		}
+//		// fmt.Println(len(newNode.friends[level]))
+//		for i := len(newNode.friends[level]) - 1; i >= 0; i-- {
+//			// fmt.Println(len(newNode.friends[level]))
+//			if h.nodes[newNode.friends[level][i]].level > level {
+//				break
+//			}
+//		}
+//		newNode.level++
+//		level++
+//	}
+//
+//	h.Lock()
+//	// Add it and increase slice length if neccessary
+//	if len(h.nodes) < int(newID)+1 {
+//		h.nodes = h.nodes[0 : newID+1]
+//	}
+//	h.nodes[newID] = newNode
+//	h.Unlock()
+//
+//	// part1 := time.Since(timeMark1).Seconds()
+//	// timeMark2 := time.Now()
+//
+//	// now add connections to newNode from newNodes neighbours (makes it visible in the graph)
+//	for level := newNode.level; level >= 0; level-- {
+//		// fmt.Printf("len(newNode.friends[level]): %d\n", len(newNode.friends[level]))
+//		for _, n := range newNode.friends[level] {
+//			h.Link(n, newID, level)
+//		}
+//	}
+//
+//	// part2 := time.Since(timeMark2).Seconds()
+//
+//	h.Lock()
+//	if newNode.level > h.maxLayer {
+//		h.maxLayer = newNode.level
+//		h.enterpoint = newID
+//	}
+//	h.Unlock()
+//
+//	// stop := time.Since(start).Seconds()
+//
+//	// fmt.Printf("part1: %.2f%%\n", part1/stop*100)
+//	// fmt.Printf("part1: %.2f%%\n", part2/stop*100)
+//	// fmt.Printf("total: %f\n", stop)
+//	// fmt.Printf("-------------------------\n")
+//}
+
+func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int, attr []string) {
+
+	if attr != nil {
+		fmt.Println(1)
 	}
-
-	epID := h.enterpoint
-	currentMaxLayer := h.nodes[epID].level
-	ep := &distqueue.Item{ID: h.enterpoint, D: h.DistFunc(h.nodes[h.enterpoint].p, q)}
-
-	// assume Grow has been called in advance
-	newID := id
-	newNode := node{p: q, level: 0, friends: make([][]uint32, 0)}
-
-	// 找到第1层中最近的一个作为ep
-	for level := currentMaxLayer; level > 0; level-- {
-		changed := true
-		for changed {
-			changed = false
-			for _, i := range h.getFriends(ep.ID, level) {
-				d := h.DistFunc(h.nodes[i].p, q)
-				if d < ep.D {
-					ep = &distqueue.Item{ID: i, D: d}
-					changed = true
-				}
-			}
-		}
-	}
-
-	// timeMark1 := time.Now()
-
-	level := 0
-	for {
-		resultSet := &distqueue.DistQueueClosestLast{}
-		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level)
-		switch h.DelaunayType {
-		case 0:
-			// shrink resultSet to M closest elements (the simple heuristic)
-			for resultSet.Len() > h.M {
-				resultSet.Pop()
-			}
-		case 1:
-			h.getNeighborsByHeuristicClosestLast(resultSet, h.M)
-		}
-		newNode.friends = append(newNode.friends, make([]uint32, resultSet.Len()))
-		for i := resultSet.Len() - 1; i >= 0; i-- {
-			item := resultSet.Pop()
-			// store in order, closest at index 0
-			newNode.friends[level][i] = item.ID
-		}
-
-		// 如果数量不足maxL，直接退出
-		if len(newNode.friends[level]) < h.M {
-			break
-		}
-		// fmt.Println(len(newNode.friends[level]))
-		for i := len(newNode.friends[level]) - 1; i >= 0; i-- {
-			// fmt.Println(len(newNode.friends[level]))
-			if h.nodes[newNode.friends[level][i]].level > level {
-				break
-			}
-		}
-		newNode.level++
-		level++
-	}
-
-	h.Lock()
-	// Add it and increase slice length if neccessary
-	if len(h.nodes) < int(newID)+1 {
-		h.nodes = h.nodes[0 : newID+1]
-	}
-	h.nodes[newID] = newNode
-	h.Unlock()
-
-	// part1 := time.Since(timeMark1).Seconds()
-	// timeMark2 := time.Now()
-
-	// now add connections to newNode from newNodes neighbours (makes it visible in the graph)
-	for level := newNode.level; level >= 0; level-- {
-		// fmt.Printf("len(newNode.friends[level]): %d\n", len(newNode.friends[level]))
-		for _, n := range newNode.friends[level] {
-			h.Link(n, newID, level)
-		}
-	}
-
-	// part2 := time.Since(timeMark2).Seconds()
-
-	h.Lock()
-	if newNode.level > h.maxLayer {
-		h.maxLayer = newNode.level
-		h.enterpoint = newID
-	}
-	h.Unlock()
-
-	// stop := time.Since(start).Seconds()
-
-	// fmt.Printf("part1: %.2f%%\n", part1/stop*100)
-	// fmt.Printf("part1: %.2f%%\n", part2/stop*100)
-	// fmt.Printf("total: %f\n", stop)
-	// fmt.Printf("-------------------------\n")
-}
-
-func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int) {
-
 	var pool, visited = h.bitset.Get()
 	//visited := make(map[uint32]bool)
 
@@ -631,13 +639,15 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 	//visited[ep.ID] = true
 	candidates.Push(ep.ID, ep.D)
 
-	resultSet.Push(ep.ID, ep.D)
+	if StringSliceEqual(h.nodes[ep.ID].attributes, attr) {
+		resultSet.Push(ep.ID, ep.D)
+	}
 
 	for candidates.Len() > 0 {
 		_, lowerBound := resultSet.Top() // worst distance so far
 		c := candidates.Pop()
 
-		if c.D > lowerBound {
+		if c.D > lowerBound && resultSet.Len() > 0 {
 			// since candidates is sorted, it wont get any better...
 			break
 		}
@@ -650,12 +660,16 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 					d := h.DistFunc(q, h.nodes[n].p)
 					_, topD := resultSet.Top()
 					if resultSet.Len() < efConstruction {
-						item := resultSet.Push(n, d)
-						candidates.PushItem(item)
+						if StringSliceEqual(h.nodes[n].attributes, attr) {
+							resultSet.Push(n, d)
+						}
+						candidates.Push(n, d)
 					} else if topD > d {
 						// keep length of resultSet to max efConstruction
-						item := resultSet.PopAndPush(n, d)
-						candidates.PushItem(item)
+						if StringSliceEqual(h.nodes[n].attributes, attr) {
+							resultSet.PopAndPush(n, d)
+						}
+						candidates.Push(n, d)
 					}
 				}
 			}
@@ -683,26 +697,26 @@ func (h *Hnsw) SearchBrute(q Point, K int) *distqueue.DistQueueClosestLast {
 }
 
 // Benchmark test precision by comparing the results of SearchBrute and Search
-func (h *Hnsw) Benchmark(q Point, ef int, K int) float64 {
-	result := h.Search(q, ef, K)
-	groundTruth := h.SearchBrute(q, K)
-	truth := make([]uint32, 0)
-	for groundTruth.Len() > 0 {
-		truth = append(truth, groundTruth.Pop().ID)
-	}
-	p := 0
-	for result.Len() > 0 {
-		i := result.Pop()
-		for j := 0; j < K; j++ {
-			if truth[j] == i.ID {
-				p++
-			}
-		}
-	}
-	return float64(p) / float64(K)
-}
+//func (h *Hnsw) Benchmark(q Point, ef int, K int) float64 {
+//	result := h.Search(q, ef, K)
+//	groundTruth := h.SearchBrute(q, K)
+//	truth := make([]uint32, 0)
+//	for groundTruth.Len() > 0 {
+//		truth = append(truth, groundTruth.Pop().ID)
+//	}
+//	p := 0
+//	for result.Len() > 0 {
+//		i := result.Pop()
+//		for j := 0; j < K; j++ {
+//			if truth[j] == i.ID {
+//				p++
+//			}
+//		}
+//	}
+//	return float64(p) / float64(K)
+//}
 
-func (h *Hnsw) Search(q Point, ef int, K int) *distqueue.DistQueueClosestLast {
+func (h *Hnsw) Search(q Point, ef int, K int, attributes []string) *distqueue.DistQueueClosestLast {
 
 	h.RLock()
 	currentMaxLayer := h.maxLayer
@@ -724,7 +738,7 @@ func (h *Hnsw) Search(q Point, ef int, K int) *distqueue.DistQueueClosestLast {
 			}
 		}
 	}
-	h.searchAtLayer(q, resultSet, ef, ep, 0)
+	h.searchAtLayer(q, resultSet, ef, ep, 0, attributes)
 
 	for resultSet.Len() > K {
 		resultSet.Pop()
@@ -748,4 +762,23 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func StringSliceEqual(a, b []string) bool {
+	if b == nil {
+		return true
+	}
+
+	if len(a) != len(b) {
+		return false
+	}
+
+	b = b[:len(a)]
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+
+	return true
 }

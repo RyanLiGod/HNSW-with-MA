@@ -1,29 +1,27 @@
 package main
 
 import (
+	hnsw ".."
 	"fmt"
+	"github.com/grd/stat"
 	"math/rand"
 	"time"
-
-	"github.com/grd/stat"
-
-	hnsw ".."
 )
 
 // NUM 元素数量
-var NUM = 10000
+var NUM = 1000
 
 // DIMENSION 元素维度
 var DIMENSION = 128
 
 // TESTNUM 测试数量
-var TESTNUM = 1000
+var TESTNUM = 10
 
 func main() {
 
 	const (
-		M              = 100
-		efConstruction = 1000
+		M              = 16
+		efConstruction = 400
 		efSearch       = 1000
 		K              = 10
 	)
@@ -33,20 +31,35 @@ func main() {
 	h := hnsw.New(M, efConstruction, zero)
 	h.Grow(NUM)
 
+	provinces := []string{"浙江省", "江西省", "安徽省"}
+	types := []string{"高校", "企业", "其他"}
+	titles := []string{"教授", "讲师"}
+
 	for i := 1; i <= NUM; i++ {
-		h.Add(randomPoint(), uint32(i))
+		//fmt.Println("--------------------")
+		//fmt.Println(i)
+		randomAttr := []string{provinces[rand.Intn(3)], types[rand.Intn(3)], titles[rand.Intn(2)]}
+		//fmt.Println(randomAttr)
+		h.Add(randomPoint(), uint32(i), randomAttr)
 		// h.Add(randomPoint(), uint32(i))
 		if (i)%1000 == 0 {
 			fmt.Printf("%v points added\n", i)
 		}
+		//fmt.Println(h.GetNodes()[0])
 	}
 	fmt.Println(h.GetNodes()[0])
-	
-	// h.Save("BalancedAdd_100000p_128d_64M_1000efc.ind")
+	//fmt.Println(h)
+	fmt.Println(h.GetNodes())
 
+	_ = h.Save("test2.ind")
+
+	// h, timestamp, _ := hnsw.Load("test.ind")
+	//fmt.Println(h)
 	// h, timestamp := hnsw.Load("BalancedAdd_50000p_128d_100M_2000efc.ind")
 	// h, timestamp := hnsw.Load("Add_50000p_128d_100M_2000efc.ind")
 	// fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
+
+
 
 	fmt.Printf("Generating queries and calculating true answers using bruteforce search...\n")
 	queries := make([]hnsw.Point, TESTNUM)
@@ -57,7 +70,6 @@ func main() {
 		truth[i] = make([]uint32, K)
 		for j := K - 1; j >= 0; j-- {
 			item := result.Pop()
-
 			truth[i][j] = item.ID
 		}
 	}
@@ -68,31 +80,45 @@ func main() {
 	start := time.Now()
 	for i := 0; i < TESTNUM; i++ {
 		startSearch := time.Now()
-		result := h.Search(queries[i], efSearch, K)
+		searchAttr := []string{provinces[rand.Intn(3)], types[rand.Intn(3)], titles[rand.Intn(2)]}
+		result := h.Search(queries[i], efSearch, K, searchAttr)
+		//result := h.Search(queries[i], efSearch, K, []string{"nil", "nil", "nil"})
+		fmt.Print("Searching with attributes:")
+		fmt.Println(searchAttr)
 		stopSearch := time.Since(startSearch)
 		timeRecord[i] = stopSearch.Seconds() * 1000
-		for j := 0; j < K; j++ {
-			item := result.Pop()
-			// fmt.Println(item)
-			for k := 0; k < K; k++ {
-				if item.ID == truth[i][k] {
-					hits++
+		if result.Size != 0 {
+			for j := 0; j < K; j++ {
+				item := result.Pop()
+				fmt.Printf("%v  ", item)
+				fmt.Println(h.GetNodeAttr(item.ID))
+				for k := 0; k < K; k++ {
+					if item.ID == truth[i][k] {
+						hits++
+					}
 				}
 			}
+		} else {
+			fmt.Println("Can't return any node")
 		}
+
+		fmt.Println()
 	}
+
+	//fmt.Println(h.GetNodes()[221])
+
 	stop := time.Since(start)
 
 	data := stat.Float64Slice(timeRecord)
 	mean := stat.Mean(data)
 	variance := stat.Variance(data)
 
-	fmt.Printf("Mean of queries time: %v\n", mean)
+	fmt.Printf("Mean of queries time(MS): %v\n", mean)
 	fmt.Printf("Variance of queries time: %v\n", variance)
 	fmt.Printf("%v queries / second (single thread)\n", 1000.0/stop.Seconds())
 	fmt.Printf("Average 10-NN precision: %v\n", float64(hits)/(float64(TESTNUM)*float64(K)))
 	fmt.Printf("\n")
-	fmt.Printf(h.Stats())
+	//fmt.Printf(h.Stats())
 }
 
 func randomPoint() hnsw.Point {
