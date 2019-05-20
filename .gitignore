@@ -1,0 +1,6 @@
+sift
+siftsmall
+src/
+*.ind
+.idea
+.vscode

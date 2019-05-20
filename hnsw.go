@@ -49,7 +49,7 @@ type Hnsw struct {
 	enterpoint uint32
 }
 
-// Load opens a index file previously written by Save(). Returnes a new index and the timestamp the file was written
+// Load opens a index file previously written by Save(). Returns a new index and the timestamp the file was written
 func Load(filename string) (*Hnsw, int64, error) {
 	f, err := os.Open(filename)
 	if err != nil {
