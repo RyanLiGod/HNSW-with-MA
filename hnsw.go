@@ -627,9 +627,6 @@ func (h *Hnsw) Add(q Point, id uint32, attributes []string) {
 
 func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int, attr []string) {
 
-	if attr != nil {
-		fmt.Println(1)
-	}
 	var pool, visited = h.bitset.Get()
 	//visited := make(map[uint32]bool)
 
@@ -765,7 +762,7 @@ func max(a, b int) int {
 }
 
 func StringSliceEqual(a, b []string) bool {
-	if b == nil {
+	if a == nil || b == nil {
 		return true
 	}
 

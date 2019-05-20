@@ -9,7 +9,7 @@ import (
 )
 
 // NUM 元素数量
-var NUM = 1000
+var NUM = 3000
 
 // DIMENSION 元素维度
 var DIMENSION = 128
@@ -77,7 +77,7 @@ func main() {
 	fmt.Printf("Now searching with HNSW...\n")
 	timeRecord := make([]float64, TESTNUM)
 	hits := 0
-	start := time.Now()
+	//start := time.Now()
 	for i := 0; i < TESTNUM; i++ {
 		startSearch := time.Now()
 		searchAttr := []string{provinces[rand.Intn(3)], types[rand.Intn(3)], titles[rand.Intn(2)]}
@@ -91,10 +91,12 @@ func main() {
 			for j := 0; j < K; j++ {
 				item := result.Pop()
 				fmt.Printf("%v  ", item)
-				fmt.Println(h.GetNodeAttr(item.ID))
-				for k := 0; k < K; k++ {
-					if item.ID == truth[i][k] {
-						hits++
+				if item != nil {
+					fmt.Println(h.GetNodeAttr(item.ID))
+					for k := 0; k < K; k++ {
+						if item.ID == truth[i][k] {
+							hits++
+						}
 					}
 				}
 			}
@@ -107,7 +109,7 @@ func main() {
 
 	//fmt.Println(h.GetNodes()[221])
 
-	stop := time.Since(start)
+	//stop := time.Since(start)
 
 	data := stat.Float64Slice(timeRecord)
 	mean := stat.Mean(data)
@@ -115,7 +117,7 @@ func main() {
 
 	fmt.Printf("Mean of queries time(MS): %v\n", mean)
 	fmt.Printf("Variance of queries time: %v\n", variance)
-	fmt.Printf("%v queries / second (single thread)\n", 1000.0/stop.Seconds())
+	fmt.Printf("%v queries / second (single thread)\n", 1000.0/mean)
 	fmt.Printf("Average 10-NN precision: %v\n", float64(hits)/(float64(TESTNUM)*float64(K)))
 	fmt.Printf("\n")
 	//fmt.Printf(h.Stats())
