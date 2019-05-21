@@ -383,7 +383,7 @@ func New(M int, efConstruction int, first Point) *Hnsw {
 }
 
 func (h *Hnsw) Stats() string {
-	s := "HNSW Index\n"
+	s := "HNSW-with-MA Index\n"
 	s = s + fmt.Sprintf("M: %v, efConstruction: %v\n", h.M, h.efConstruction)
 	s = s + fmt.Sprintf("DelaunayType: %v\n", h.DelaunayType)
 	s = s + fmt.Sprintf("Number of nodes: %v\n", len(h.nodes))
@@ -676,9 +676,12 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 }
 
 // SearchBrute returns the true K nearest neigbours to search point q
-func (h *Hnsw) SearchBrute(q Point, K int) *distqueue.DistQueueClosestLast {
+func (h *Hnsw) SearchBrute(q Point, K int, attributes []string) *distqueue.DistQueueClosestLast {
 	resultSet := &distqueue.DistQueueClosestLast{Size: K}
 	for i := 1; i < len(h.nodes); i++ {
+		if !StringSliceEqual(h.nodes[i].attributes, attributes) {
+			continue
+		}
 		d := h.DistFunc(h.nodes[i].p, q)
 		if resultSet.Len() < K {
 			resultSet.Push(uint32(i), d)
@@ -694,24 +697,24 @@ func (h *Hnsw) SearchBrute(q Point, K int) *distqueue.DistQueueClosestLast {
 }
 
 // Benchmark test precision by comparing the results of SearchBrute and Search
-//func (h *Hnsw) Benchmark(q Point, ef int, K int) float64 {
-//	result := h.Search(q, ef, K)
-//	groundTruth := h.SearchBrute(q, K)
-//	truth := make([]uint32, 0)
-//	for groundTruth.Len() > 0 {
-//		truth = append(truth, groundTruth.Pop().ID)
-//	}
-//	p := 0
-//	for result.Len() > 0 {
-//		i := result.Pop()
-//		for j := 0; j < K; j++ {
-//			if truth[j] == i.ID {
-//				p++
-//			}
-//		}
-//	}
-//	return float64(p) / float64(K)
-//}
+func (h *Hnsw) Benchmark(q Point, ef int, K int, attributes []string) float64 {
+	result := h.Search(q, ef, K, attributes)
+	groundTruth := h.SearchBrute(q, K, attributes)
+	truth := make([]uint32, 0)
+	for groundTruth.Len() > 0 {
+		truth = append(truth, groundTruth.Pop().ID)
+	}
+	p := 0
+	for result.Len() > 0 {
+		i := result.Pop()
+		for j := 0; j < K; j++ {
+			if truth[j] == i.ID {
+				p++
+			}
+		}
+	}
+	return float64(p) / float64(K)
+}
 
 func (h *Hnsw) Search(q Point, ef int, K int, attributes []string) *distqueue.DistQueueClosestLast {
 
