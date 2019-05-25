@@ -9,7 +9,7 @@ import (
 )
 
 // NUM 元素数量
-var NUM = 20000
+var NUM = 3000
 
 // DIMENSION 元素维度
 var DIMENSION = 128
@@ -22,13 +22,14 @@ func main() {
 	const (
 		M              = 16
 		efConstruction = 400
-		efSearch       = 400
+		efSearch       = 100
 		K              = 10
 	)
 
 	var zero hnsw.Point = make([]float32, DIMENSION)
 
-	h := hnsw.New(M, efConstruction, zero)
+	//h := hnsw.New(M, efConstruction, zero, "l2")
+	h := hnsw.New(M, efConstruction, zero, "cosine")
 	h.Grow(NUM)
 
 	provinces := []string{"浙江省", "江西省", "安徽省"}
@@ -47,23 +48,20 @@ func main() {
 		}
 		//fmt.Println(h.GetNodes()[0])
 	}
+	//fmt.Println(h.GetAttributeLink())
 	//fmt.Println(h.GetNodes()[0])
 	//fmt.Println(h)
-	//fmt.Println(h.GetNodes())
 
-	//_ = h.Save("test2.ind")
+	//_ = h.Save("test.ind")
 
-	// h, timestamp, _ := hnsw.Load("test.ind")
-	//fmt.Println(h)
-	// h, timestamp := hnsw.Load("BalancedAdd_50000p_128d_100M_2000efc.ind")
-	// h, timestamp := hnsw.Load("Add_50000p_128d_100M_2000efc.ind")
-	// fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
+	//h, timestamp, _ := hnsw.Load("test.ind")
+	//fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
 
 
 	fmt.Printf("Now searching with HNSW...\n")
 	timeRecord := make([]float64, TESTNUM)
 	hits := 0
-	//start := time.Now()
+	// start := time.Now()
 	for i := 0; i < TESTNUM; i++ {
 		searchAttr := []string{provinces[rand.Intn(3)], types[rand.Intn(3)], titles[rand.Intn(2)]}
 		fmt.Printf("Generating queries and calculating true answers using bruteforce search...\n")
@@ -107,7 +105,7 @@ func main() {
 
 	//fmt.Println(h.GetNodes()[221])
 
-	//stop := time.Since(start)
+	// stop := time.Since(start)
 
 	data := stat.Float64Slice(timeRecord)
 	mean := stat.Mean(data)

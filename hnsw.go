@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"./cosd"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ type Hnsw struct {
 	efConstruction int
 	linkMode       int
 	DelaunayType   int
+	distType       int
 
 	DistFunc func([]float32, []float32) float32
 
@@ -72,8 +74,14 @@ func Load(filename string) (*Hnsw, int64, error) {
 	h.LevelMult = readFloat64(z)
 	h.maxLayer = readInt32(z)
 	h.enterpoint = uint32(readInt32(z))
+	h.distType = readInt32(z)
+	if h.distType == 1 {
+		h.DistFunc = f32.L2Squared8AVX
+	} else if h.distType == 2 {
+		h.DistFunc = cosd.Cosd
+	}
 
-	h.DistFunc = f32.L2Squared8AVX
+
 	h.bitset = bitsetpool.New()
 
 	l := readInt32(z)
@@ -104,8 +112,8 @@ func Load(filename string) (*Hnsw, int64, error) {
 
 	}
 
-	z.Close()
-	f.Close()
+	_ = z.Close()
+	_ = f.Close()
 
 	return h, timestamp, nil
 }
@@ -130,13 +138,11 @@ func (h *Hnsw) Save(filename string) error {
 	writeFloat64(h.LevelMult, z)
 	writeInt32(h.maxLayer, z)
 	writeInt32(int(h.enterpoint), z)
+	writeInt32(h.distType, z)
 
 	l := len(h.nodes)
 	writeInt32(l, z)
 
-	if err != nil {
-		return err
-	}
 	for _, n := range h.nodes {
 		l := len(n.p)
 		writeInt32(l, z)
@@ -158,8 +164,8 @@ func (h *Hnsw) Save(filename string) error {
 		}
 	}
 
-	z.Close()
-	f.Close()
+	_ = z.Close()
+	_ = f.Close()
 
 	return nil
 }
@@ -362,7 +368,7 @@ func (h *Hnsw) getNeighborsByHeuristicClosestFirst(resultSet *distqueue.DistQueu
 	}
 }
 
-func New(M int, efConstruction int, first Point) *Hnsw {
+func New(M int, efConstruction int, first Point, distString string) *Hnsw {
 
 	h := Hnsw{}
 	h.M = M
@@ -374,10 +380,16 @@ func New(M int, efConstruction int, first Point) *Hnsw {
 
 	h.bitset = bitsetpool.New()
 
-	h.DistFunc = f32.L2Squared8AVX
+	if distString == "l2" {
+		h.DistFunc = f32.L2Squared8AVX
+		h.distType = 1
+	} else if distString == "cosine" {
+		h.DistFunc = cosd.Cosd
+		h.distType = 2
+	}
 
 	// add first point, it will be our enterpoint (index 0)
-	h.nodes = []node{node{level: 0, p: first}}
+	h.nodes = []node{{level: 0, p: first}}
 
 	return &h
 }
@@ -636,7 +648,7 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 	//visited[ep.ID] = true
 	candidates.Push(ep.ID, ep.D)
 
-	if StringSliceEqual(h.nodes[ep.ID].attributes, attr) {
+	if stringSliceEqual(h.nodes[ep.ID].attributes, attr) {
 		resultSet.Push(ep.ID, ep.D)
 	}
 
@@ -657,13 +669,13 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 					d := h.DistFunc(q, h.nodes[n].p)
 					_, topD := resultSet.Top()
 					if resultSet.Len() < efConstruction {
-						if StringSliceEqual(h.nodes[n].attributes, attr) {
+						if stringSliceEqual(h.nodes[n].attributes, attr) {
 							resultSet.Push(n, d)
 						}
 						candidates.Push(n, d)
 					} else if topD > d {
 						// keep length of resultSet to max efConstruction
-						if StringSliceEqual(h.nodes[n].attributes, attr) {
+						if stringSliceEqual(h.nodes[n].attributes, attr) {
 							resultSet.PopAndPush(n, d)
 						}
 						candidates.Push(n, d)
@@ -679,7 +691,7 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 func (h *Hnsw) SearchBrute(q Point, K int, attributes []string) *distqueue.DistQueueClosestLast {
 	resultSet := &distqueue.DistQueueClosestLast{Size: K}
 	for i := 1; i < len(h.nodes); i++ {
-		if !StringSliceEqual(h.nodes[i].attributes, attributes) {
+		if !stringSliceEqual(h.nodes[i].attributes, attributes) {
 			continue
 		}
 		d := h.DistFunc(h.nodes[i].p, q)
@@ -764,7 +776,7 @@ func max(a, b int) int {
 	return b
 }
 
-func StringSliceEqual(a, b []string) bool {
+func stringSliceEqual(a, b []string) bool {
 	if a == nil || b == nil {
 		return true
 	}
