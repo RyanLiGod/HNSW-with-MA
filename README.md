@@ -1,6 +1,7 @@
 # HNSW with MA
 
 HNSW with MA is a naive GO implementation of the **multiple attribute** HNSW approximate nearest-neighbour search algorithm based on HNSW (Implemented in C++ in https://github.com/searchivarius/nmslib and described in https://arxiv.org/abs/1603.09320)
+
 More advance implementation in https://github.com/RyanLiGod/MA-NSW.
 
 ## Usage
