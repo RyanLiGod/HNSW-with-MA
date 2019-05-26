@@ -17,11 +17,11 @@ type query2 struct {
 }
 
 const (
-	M3              = 8
-	efConstruction3 = 60
+	M3              = 16
+	efConstruction3 = 400
 )
 
-var efSearch3 = []int{10, 20, 30, 50, 80, 100, 101, 110, 150, 200, 300, 500, 1000}
+var efSearch3 = []int{10, 20, 30, 50, 80, 100, 101, 110, 150, 200}
 
 var NUM3, TESTNUM3, K3, DIMENSION3 int
 var DIST3 string
