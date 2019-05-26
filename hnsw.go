@@ -433,7 +433,23 @@ func (h *Hnsw) Stats() string {
 	levCount := make([]int, h.maxLayer+1)
 	conns := make([]int, h.maxLayer+1)
 	connsC := make([]int, h.maxLayer+1)
+	attrType := make(map[string]int)
 	for i := range h.nodes {
+		if h.nodes[i].attributes != nil {
+			attrString := ""
+			for i, attr := range h.nodes[i].attributes {
+				attrString += attr
+				if i < len(h.nodes[i].attributes)-1 {
+					attrString += ";"
+				}
+			}
+			if _, ok := attrType[attrString]; ok {
+				attrType[attrString]++
+			} else {
+				attrType[attrString] = 1
+			}
+		}
+
 		levCount[h.nodes[i].level]++
 		for j := 0; j <= h.nodes[i].level; j++ {
 			if len(h.nodes[i].friends) > j {
@@ -448,6 +464,9 @@ func (h *Hnsw) Stats() string {
 	for i := range levCount {
 		avg := conns[i] / max(1, connsC[i])
 		s = s + fmt.Sprintf("Level %v: %v nodes, average number of connections %v\n", i, levCount[i], avg)
+	}
+	for k, v := range attrType {
+		s = s + fmt.Sprintf("Number of nodes with attributes [%v]: %v\n", k, v)
 	}
 	s = s + fmt.Sprintf("Memory use for data: %v (%v bytes / point)\n", memoryUseData, memoryUseData/len(h.nodes))
 	s = s + fmt.Sprintf("Memory use for index: %v (avg %v bytes / point)\n", memoryUseIndex, memoryUseIndex/len(h.nodes))

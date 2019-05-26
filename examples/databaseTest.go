@@ -21,7 +21,7 @@ const (
 	efConstruction3 = 400
 )
 
-var efSearch3 = []int{10, 20, 30, 50, 80, 100, 101, 110, 150, 200}
+var efSearch3 = []int{100, 101, 110, 150, 200, 500}
 
 var NUM3, TESTNUM3, K3, DIMENSION3 int
 var DIST3 string
@@ -29,8 +29,8 @@ var DIST3 string
 func main() {
 	//preType := "gist"
 	//preType := "sift"
-	//preType := "sift1_4"
-	preType := "glove25"
+	preType := "sift1_4"
+	//preType := "glove25"
 	//preType := "siftsmall"
 	if preType == "siftsmall" {
 		NUM3 = 10000
@@ -93,7 +93,7 @@ func main() {
 	h := hnsw.New(M3, efConstruction3, p, DIST3)
 	h.Grow(NUM3)
 
-	fmt.Println("Index loading...")
+	fmt.Println("Index loading: " + preType + "_" + strconv.FormatInt(M3, 10) + "_" + strconv.FormatInt(efConstruction3, 10) + ".ind")
 	h, timestamp, _ := hnsw.Load("ind/" + preType + "/" + preType + "_" + strconv.FormatInt(M3, 10) + "_" + strconv.FormatInt(efConstruction3, 10) + ".ind")
 	fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
 
