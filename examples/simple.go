@@ -20,9 +20,9 @@ var TESTNUM = 10
 func main() {
 
 	const (
-		M              = 16
-		efConstruction = 400
-		efSearch       = 100
+		M              = 8
+		efConstruction = 100
+		efSearch       = 1000
 		K              = 10
 	)
 
@@ -52,10 +52,13 @@ func main() {
 	//fmt.Println(h.GetNodes()[0])
 	//fmt.Println(h)
 
-	//_ = h.Save("test.ind")
+	err := h.Save("test.ind")
+	if err != nil {
+		panic("Save error!")
+	}
 
-	//h, timestamp, _ := hnsw.Load("test.ind")
-	//fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
+	h, timestamp, _ := hnsw.Load("test.ind")
+	fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
 
 
 	fmt.Printf("Now searching with HNSW...\n")
@@ -79,10 +82,10 @@ func main() {
 		startSearch := time.Now()
 		result := h.Search(queries[i], efSearch, K, searchAttr)
 		//result := h.Search(queries[i], efSearch, K, []string{"nil", "nil", "nil"})
-		fmt.Print("Searching with attributes:")
-		fmt.Println(searchAttr)
 		stopSearch := time.Since(startSearch)
 		timeRecord[i] = stopSearch.Seconds() * 1000
+		fmt.Print("Searching with attributes:")
+		fmt.Println(searchAttr)
 		if result.Size != 0 {
 			for j := 0; j < K; j++ {
 				item := result.Pop()
@@ -120,9 +123,15 @@ func main() {
 }
 
 func randomPoint() hnsw.Point {
+	a := rand.Intn(2)
 	var v hnsw.Point = make([]float32, DIMENSION)
 	for i := range v {
-		v[i] = rand.Float32()
+		neg := 1.0
+		if a == 0 {
+			neg = -1.0
+		}
+		v[i] = rand.Float32() * float32(neg)
 	}
+	//fmt.Println(v)
 	return v
 }

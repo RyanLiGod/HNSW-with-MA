@@ -17,8 +17,8 @@ type query2 struct {
 }
 
 const (
-	M3              = 16
-	efConstruction3 = 400
+	M3              = 8
+	efConstruction3 = 60
 )
 
 var efSearch3 = []int{10, 20, 30, 50, 80, 100, 101, 110, 150, 200, 300, 500, 1000}
@@ -29,7 +29,8 @@ var DIST3 string
 func main() {
 	//preType := "gist"
 	//preType := "sift"
-	preType := "sift1_4"
+	//preType := "sift1_4"
+	preType := "glove25"
 	//preType := "siftsmall"
 	if preType == "siftsmall" {
 		NUM3 = 10000
@@ -104,8 +105,6 @@ func main() {
 		for i := 0; i < TESTNUM3; i++ {
 			startSearch := time.Now()
 			result := h.Search(queries[i].p, efs, K3, queries[i].attr)
-			//fmt.Print("Searching with attributes:")
-			//fmt.Println(attrQuery[i])
 			stopSearch := time.Since(startSearch)
 			timeRecord[i] = stopSearch.Seconds() * 1000
 			if result.Size != 0 {
@@ -114,18 +113,18 @@ func main() {
 					//fmt.Printf("%v  ", item)
 					if item != nil {
 						//fmt.Println(h.GetNodeAttr(item.ID))
-						var flag = 0
+						//var flag = 0
 						for k := 0; k < K3; k++ {
 							if item.ID == truth[i][k] {
 								hits++
-								flag = 1
+								//flag = 1
 								break
 							}
 						}
-						if flag == 0 {
-							fmt.Printf("Can't match: %v, i: %v, attr: %v", item.ID, i, queries[i].attr)
-							fmt.Println()
-						}
+						//if flag == 0 {
+						//	fmt.Printf("Can't match: %v, i: %v, attr: %v", item.ID, i, queries[i].attr)
+						//	fmt.Println()
+						//}
 					}
 				}
 			} else {
@@ -139,7 +138,7 @@ func main() {
 		mean := stat.Mean(data)
 		variance := stat.Variance(data)
 
-		fmt.Printf("--------------efc: %v---------------\n", efs)
+		fmt.Printf("--------------efs: %v---------------\n", efs)
 		fmt.Printf("Mean of queries time(MS): %v\n", mean)
 		fmt.Printf("Variance of queries time: %v\n", variance)
 		fmt.Printf("%v queries / second (single thread)\n", 1000.0/mean)

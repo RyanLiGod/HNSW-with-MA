@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strconv"
@@ -26,8 +27,8 @@ type query struct {
 }
 
 const (
-	M2              = 16
-	efConstruction2 = 400
+	M2              = 8
+	efConstruction2 = 60
 	efSearch2       = 200
 )
 
@@ -40,7 +41,8 @@ func main() {
 	//preType := "mnist"
 	//preType := "siftsmall"
 	//preType := "sift"
-	preType := "sift1_4"
+	//preType := "sift1_4"
+	preType := "glove25"
 
 	if preType == "siftsmall" {
 		NUM2 = 10000
@@ -172,44 +174,44 @@ func main() {
 	wg2.Wait()
 
 	// Save ground truth to file
-	//var fileTruth = prefix + "_groundtruth.txt"
-	////var fileTruth = "test" + "_groundtruth.txt"
-	//f, _ := os.Create(fileTruth)
-	//for _, line := range truth.p {
-	//	for i, v := range line {
-	//		_, _ = io.WriteString(f, strconv.FormatUint(uint64(v), 10))
-	//		if i < len(line)-1 {
-	//			_, _ = io.WriteString(f, " ")
-	//		}
-	//	}
-	//	_, _ = io.WriteString(f, "\n")
-	//}
+	var fileTruth = prefix + "_groundtruth.txt"
+	//var fileTruth = "test" + "_groundtruth.txt"
+	f, _ := os.Create(fileTruth)
+	for _, line := range truth.p {
+		for i, v := range line {
+			_, _ = io.WriteString(f, strconv.FormatUint(uint64(v), 10))
+			if i < len(line)-1 {
+				_, _ = io.WriteString(f, " ")
+			}
+		}
+		_, _ = io.WriteString(f, "\n")
+	}
 
 	for i := 0; i < TESTNUM2; i++ {
 		startSearch := time.Now()
 		result := h.Search(querySlice[i].p, efSearch2, K, querySlice[i].attr)
-		//fmt.Print("Searching with attributes:")
-		//fmt.Println(attrQuery[i])
 		stopSearch := time.Since(startSearch)
 		timeRecord[i] = stopSearch.Seconds() * 1000
+		//fmt.Print("Searching with attributes:")
+		//fmt.Println(attrQuery[i])
 		if result.Size != 0 {
 			for j := 0; j < K; j++ {
 				item := result.Pop()
 				//fmt.Printf("%v  ", item)
 				if item != nil {
 					//fmt.Println(h.GetNodeAttr(item.ID))
-					var flag = 0
+					//var flag = 0
 					for k := 0; k < K; k++ {
 						if item.ID == truth.p[i][k] {
 							hits++
-							flag = 1
+							//flag = 1
 							break
 						}
 					}
-					if flag == 0 {
-						fmt.Printf("Can't match: %v, i: %v, attr: %v", item.ID, i, querySlice[i].attr)
-						fmt.Println()
-					}
+					//if flag == 0 {
+					//	fmt.Printf("Can't match: %v, i: %v, attr: %v", item.ID, i, querySlice[i].attr)
+					//	fmt.Println()
+					//}
 				}
 			}
 		} else {

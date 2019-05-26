@@ -3,6 +3,7 @@ package hnsw
 import (
 	"compress/gzip"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -110,6 +111,19 @@ func Load(filename string) (*Hnsw, int64, error) {
 			}
 		}
 
+		// Read attributes (can be deleted in product mode)
+		l = readInt32(z)
+		bt := make([]byte, int(l))
+		err = binary.Read(z, binary.LittleEndian, &bt)
+		if err != nil {
+			panic(err)
+		}
+		var attributes []string
+		err = json.Unmarshal(bt, &attributes)
+		if err != nil {
+			panic(err)
+		}
+		h.nodes[i].attributes = attributes
 	}
 
 	_ = z.Close()
@@ -161,6 +175,20 @@ func (h *Hnsw) Save(filename string) error {
 			if err != nil {
 				panic(err)
 			}
+		}
+
+		// Write attributes (can be deleted in product mode)
+		res, err := json.Marshal(n.attributes)
+		if err != nil {
+			panic(err)
+		}
+		err = binary.Write(z, binary.LittleEndian, int32(len(res)))
+		if err != nil {
+			panic(err)
+		}
+		err = binary.Write(z, binary.LittleEndian, &res)
+		if err != nil {
+			panic(err)
 		}
 	}
 
@@ -480,7 +508,7 @@ func (h *Hnsw) Add(q Point, id uint32, attributes []string) {
 	for level := min(curlevel, currentMaxLayer); level >= 0; level-- {
 
 		resultSet := &distqueue.DistQueueClosestLast{}
-		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level, nil)
+		h.searchAtLayer(q, resultSet, h.efConstruction, ep, level)
 		switch h.DelaunayType {
 		case 0:
 			// shrink resultSet to M closest elements (the simple heuristic)
@@ -490,6 +518,7 @@ func (h *Hnsw) Add(q Point, id uint32, attributes []string) {
 		case 1:
 			h.getNeighborsByHeuristicClosestLast(resultSet, h.M)
 		}
+
 		newNode.friends[level] = make([]uint32, resultSet.Len())
 		for i := resultSet.Len() - 1; i >= 0; i-- {
 			item := resultSet.Pop()
@@ -637,7 +666,7 @@ func (h *Hnsw) Add(q Point, id uint32, attributes []string) {
 //	// fmt.Printf("-------------------------\n")
 //}
 
-func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int, attr []string) {
+func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int) {
 
 	var pool, visited = h.bitset.Get()
 	//visited := make(map[uint32]bool)
@@ -648,7 +677,51 @@ func (h *Hnsw) searchAtLayer(q Point, resultSet *distqueue.DistQueueClosestLast,
 	//visited[ep.ID] = true
 	candidates.Push(ep.ID, ep.D)
 
-	if stringSliceEqual(h.nodes[ep.ID].attributes, attr) {
+	resultSet.Push(ep.ID, ep.D)
+
+	for candidates.Len() > 0 {
+		_, lowerBound := resultSet.Top() // worst distance so far
+		c := candidates.Pop()
+
+		if c.D > lowerBound {
+			// since candidates is sorted, it wont get any better...
+			break
+		}
+
+		if len(h.nodes[c.ID].friends) >= level+1 {
+			friends := h.nodes[c.ID].friends[level]
+			for _, n := range friends {
+				if !visited.Test(uint(n)) {
+					visited.Set(uint(n))
+					d := h.DistFunc(q, h.nodes[n].p)
+					_, topD := resultSet.Top()
+					if resultSet.Len() < efConstruction {
+						item := resultSet.Push(n, d)
+						candidates.PushItem(item)
+					} else if topD > d {
+						// keep length of resultSet to max efConstruction
+						item := resultSet.PopAndPush(n, d)
+						candidates.PushItem(item)
+					}
+				}
+			}
+		}
+	}
+	h.bitset.Free(pool)
+}
+
+func (h *Hnsw) searchAtLayer2(q Point, resultSet *distqueue.DistQueueClosestLast, efConstruction int, ep *distqueue.Item, level int, attr []string) {
+
+	var pool, visited = h.bitset.Get()
+	//visited := make(map[uint32]bool)
+
+	candidates := &distqueue.DistQueueClosestFirst{Size: efConstruction * 3}
+
+	visited.Set(uint(ep.ID))
+	//visited[ep.ID] = true
+	candidates.Push(ep.ID, ep.D)
+
+	if stringSliceEqual(h.nodes[ep.ID].attributes, attr)  {
 		resultSet.Push(ep.ID, ep.D)
 	}
 
@@ -750,7 +823,7 @@ func (h *Hnsw) Search(q Point, ef int, K int, attributes []string) *distqueue.Di
 			}
 		}
 	}
-	h.searchAtLayer(q, resultSet, ef, ep, 0, attributes)
+	h.searchAtLayer2(q, resultSet, ef, ep, 0, attributes)
 
 	for resultSet.Len() > K {
 		resultSet.Pop()
@@ -777,11 +850,11 @@ func max(a, b int) int {
 }
 
 func stringSliceEqual(a, b []string) bool {
-	if a == nil || b == nil {
-		return true
+	if len(a) != len(b) {
+		return false
 	}
 
-	if len(a) != len(b) {
+	if (a == nil) != (b == nil) {
 		return false
 	}
 
