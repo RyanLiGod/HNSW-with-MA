@@ -27,9 +27,9 @@ type query struct {
 }
 
 const (
-	M2              = 8
-	efConstruction2 = 60
-	efSearch2       = 200
+	M2              = 16
+	efConstruction2 = 400
+	efSearch2       = 1000
 )
 
 var NUM2, TESTNUM2, K, DIMENSION2 int
@@ -124,14 +124,6 @@ func main() {
 	}
 	wg.Wait()
 
-	err := h.Save("ind/" + preType + "/" + preType + "_" + strconv.FormatInt(M2, 10) + "_" + strconv.FormatInt(efConstruction2, 10) + ".ind")
-	if err != nil {
-		panic("Save error!")
-	}
-
-	h, timestamp, _ := hnsw.Load("ind/" + preType + "/" + preType + "_" + strconv.FormatInt(M2, 10) + "_" + strconv.FormatInt(efConstruction2, 10) + ".ind")
-	fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
-
 	fmt.Printf("Now searching with HNSW...\n")
 	timeRecord := make([]float64, TESTNUM2)
 	hits := 0
@@ -186,6 +178,14 @@ func main() {
 		}
 		_, _ = io.WriteString(f, "\n")
 	}
+
+	err := h.Save("ind/" + preType + "/" + preType + "_" + strconv.FormatInt(M2, 10) + "_" + strconv.FormatInt(efConstruction2, 10) + ".ind")
+	if err != nil {
+		panic("Save error!")
+	}
+
+	h, timestamp, _ := hnsw.Load("ind/" + preType + "/" + preType + "_" + strconv.FormatInt(M2, 10) + "_" + strconv.FormatInt(efConstruction2, 10) + ".ind")
+	fmt.Printf("Index loaded, time saved was %v\n", time.Unix(timestamp, 0))
 
 	for i := 0; i < TESTNUM2; i++ {
 		startSearch := time.Now()
