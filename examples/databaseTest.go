@@ -4,6 +4,7 @@ import (
 	hnsw ".."
 	"bufio"
 	"fmt"
+	"github.com/360EntSecGroup-Skylar/excelize"
 	"github.com/grd/stat"
 	"os"
 	"strconv"
@@ -19,9 +20,11 @@ type query2 struct {
 const (
 	M3              = 16
 	efConstruction3 = 400
+	//M3              = 32
+	//efConstruction3 = 800
 )
 
-var efSearch3 = []int{100, 101, 110, 150, 200, 500}
+var efSearch3 = []int{10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 150, 200, 300}
 
 var NUM3, TESTNUM3, K3, DIMENSION3 int
 var DIST3 string
@@ -29,60 +32,68 @@ var DIST3 string
 func main() {
 	//preType := "gist"
 	//preType := "sift"
-	preType := "sift1_4"
+	preType := "sift1_16"
 	//preType := "glove25"
 	//preType := "siftsmall"
 	if preType == "siftsmall" {
 		NUM3 = 10000
 		TESTNUM3 = 100
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 128
 		DIST3 = "l2"
 	} else if preType == "sift" || preType == "sift1_4" || preType == "sift1_8" || preType == "sift1_16" {
 		NUM3 = 1000000
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 128
 		DIST3 = "l2"
 	} else if preType == "gist" {
 		NUM3 = 1000000
 		TESTNUM3 = 1000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 960
 	} else if preType == "glove25" {
 		NUM3 = 1183514
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 25
 		DIST3 = "cosine"
 	} else if preType == "glove50" {
 		NUM3 = 1183514
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 50
 		DIST3 = "cosine"
 	} else if preType == "glove100" {
 		NUM3 = 1183514
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 100
 		DIST3 = "cosine"
 	} else if preType == "glove200" {
 		NUM3 = 1183514
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 200
 		DIST3 = "cosine"
 	} else if preType == "mnist" {
 		NUM3 = 60000
 		TESTNUM3 = 10000
-		K3 = 100
+		K3 = 10
 		DIMENSION3 = 784
 		DIST3 = "l2"
 	}
 
-	prefix := "../dataset/" + preType + "_ma/" + preType
+	xlsx, _ := excelize.OpenFile("/Users/Ryan/Desktop/HNSW Experiments.xlsx")
+	sheetName := "MA_" + preType + "_" + strconv.FormatInt(M3, 10) + "_" + strconv.FormatInt(efConstruction3, 10)
+	xlsx.NewSheet(sheetName)
+	_ = xlsx.SetCellValue(sheetName, "A1", "efSearch")
+	_ = xlsx.SetCellValue(sheetName, "B1", "Query time(MS)")
+	_ = xlsx.SetCellValue(sheetName, "C1", "Variance")
+	_ = xlsx.SetCellValue(sheetName, "D1", "Precision")
 
+
+	prefix := "../dataset/" + preType + "_ma/" + preType
 	queries := make([]query2, TESTNUM3)
 	truth := make([][]uint32, TESTNUM3)
 
@@ -99,12 +110,14 @@ func main() {
 
 	fmt.Printf("Now searching with HNSW...\n")
 
-	for _, efs := range efSearch3 {
+	for iter, efs := range efSearch3 {
 		timeRecord := make([]float64, TESTNUM3)
 		hits := 0
 		for i := 0; i < TESTNUM3; i++ {
 			startSearch := time.Now()
 			result := h.Search(queries[i].p, efs, K3, queries[i].attr)
+			//fmt.Print("Searching with attributes:")
+			//fmt.Println(attrQuery[i])
 			stopSearch := time.Since(startSearch)
 			timeRecord[i] = stopSearch.Seconds() * 1000
 			if result.Size != 0 {
@@ -145,8 +158,18 @@ func main() {
 		fmt.Printf("Average %v-NN precision: %v\n", K3, float64(hits)/(float64(TESTNUM3)*float64(K3)))
 		fmt.Printf("\n")
 
+		err := xlsx.SetCellValue(sheetName, "A" + fmt.Sprintf("%d", iter + 2), efs)
+		err = xlsx.SetCellValue(sheetName, "B" + fmt.Sprintf("%d", iter + 2), decimal(mean))
+		err = xlsx.SetCellValue(sheetName, "C" + fmt.Sprintf("%d", iter + 2), decimal(variance))
+		err = xlsx.SetCellValue(sheetName, "D" + fmt.Sprintf("%d", iter + 2), decimal(float64(hits)/(float64(TESTNUM3)*float64(K3))))
+		if err != nil {
+			panic(err)
+		}
 	}
-
+	err := xlsx.Save()
+	if err != nil {
+		fmt.Println(err)
+	}
 	fmt.Println("----------------------------------")
 	fmt.Printf(h.Stats())
 
@@ -197,8 +220,15 @@ func loadGroundTruth(prefix string) [][]uint32 {
 		truth[count] = truthForOne
 		count++
 		if count%1000 == 0 {
-			fmt.Printf("Read %v query records\n", count)
+			fmt.Printf("Read %v truth records\n", count)
 		}
 	}
 	return truth
 }
+
+func decimal(value float64) float64 {
+	value, _ = strconv.ParseFloat(fmt.Sprintf("%.4f", value), 32)
+	return value
+}
+
+

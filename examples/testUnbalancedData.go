@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-type query4 struct {
-	p    []float32
-	attr []string
-}
-
 const (
 	M4              = 16
 	efConstruction4 = 400

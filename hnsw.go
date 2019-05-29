@@ -437,9 +437,9 @@ func (h *Hnsw) Stats() string {
 	for i := range h.nodes {
 		if h.nodes[i].attributes != nil {
 			attrString := ""
-			for i, attr := range h.nodes[i].attributes {
+			for m, attr := range h.nodes[i].attributes {
 				attrString += attr
-				if i < len(h.nodes[i].attributes)-1 {
+				if m < len(h.nodes[i].attributes)-1 {
 					attrString += ";"
 				}
 			}
