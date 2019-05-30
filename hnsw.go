@@ -869,6 +869,10 @@ func max(a, b int) int {
 }
 
 func stringSliceEqual(a, b []string) bool {
+	if b == nil {
+		return true
+	}
+
 	if len(a) != len(b) {
 		return false
 	}
